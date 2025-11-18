@@ -1,33 +1,51 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
-import '../../../lib/features/seguimientos/domain/use_cases/seguimientos_use_cases.dart';
-import '../../../lib/features/seguimientos/domain/entities/seguimiento.dart';
-import '../../../lib/features/seguimientos/domain/repositories/seguimientos_repository.dart';
-import '../../../lib/core/errors/failures.dart';
 import 'package:dartz/dartz.dart';
-import 'mocks.mocks.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
+import 'package:seguimiento_norandino/core/errors/failures.dart';
+import 'package:seguimiento_norandino/features/seguimientos/domain/entities/seguimiento.dart';
+import 'package:seguimiento_norandino/features/seguimientos/domain/use_cases/seguimientos_use_cases.dart';
 
-@GenerateMocks([SeguimientosRepository])
+import 'get_seguimiento_by_id_use_case_test.mocks.dart';
+
 void main() {
-  test('UC-S01: Debería obtener un seguimiento por ID', () async {
-    final seguimiento = Seguimiento(
-      id: 's1',
-      rutaId: 'r1',
-      nombreRuta: 'Ruta 1',
-      asesorId: 'a1',
-      nombreAsesor: 'Asesor 1',
-      clienteId: 'c1',
-      nombreCliente: 'Cliente 1',
-      tipoVisita: 'cobranza',
-      estado: 'pendiente',
-      requiereAccion: false,
+  late MockSeguimientosRepository repository;
+  late GetSeguimientoByIdUseCase useCase;
+
+  const seguimiento = Seguimiento(
+    id: 'seg-1',
+    rutaId: 'ruta-1',
+    nombreRuta: 'Ruta Principal',
+    asesorId: 'asesor-1',
+    nombreAsesor: 'Juan Pérez',
+    clienteId: 'cliente-1',
+    nombreCliente: 'Cliente Demo',
+    tipoVisita: 'cobranza',
+    estado: 'pendiente',
+    requiereAccion: false,
+  );
+
+  setUp(() {
+    repository = MockSeguimientosRepository();
+    useCase = GetSeguimientoByIdUseCase(repository);
+  });
+
+  test('UC-S01: debería obtener un seguimiento por id', () async {
+    when(repository.getSeguimientoById(any)).thenAnswer((_) async => const Right(seguimiento));
+
+    final result = await useCase('seg-1');
+
+    expect(result.isRight(), isTrue);
+    expect(result.getOrElse(() => throw StateError('Resultado inesperado')), seguimiento);
+    verify(repository.getSeguimientoById('seg-1')).called(1);
+  });
+
+  test('UC-S01: debería fallar si el id está vacío', () async {
+    final result = await useCase('');
+
+    result.fold(
+      (failure) => expect(failure, const ValidationFailure(message: 'ID de seguimiento inválido')),
+      (_) => fail('Se esperaba un fallo de validación'),
     );
-    final mockRepo = MockSeguimientosRepository();
-    when(mockRepo.getSeguimientoById(any<String>())).thenAnswer((_) async => Right(seguimiento));
-    final useCase = GetSeguimientoByIdUseCase(mockRepo);
-    final result = await useCase('s1');
-    expect(result.isRight(), true);
-    result.fold((l) => null, (r) => expect(r, seguimiento));
+    verifyNever(repository.getSeguimientoById(any));
   });
 }
