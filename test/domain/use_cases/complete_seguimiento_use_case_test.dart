@@ -1,35 +1,73 @@
-import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
 import 'package:dartz/dartz.dart';
-import '../../../lib/features/seguimientos/domain/use_cases/seguimientos_use_cases.dart';
-import '../../../lib/features/seguimientos/domain/entities/seguimiento.dart';
-import '../../../lib/features/seguimientos/domain/repositories/seguimientos_repository.dart';
-import '../../../lib/core/errors/failures.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
+import 'package:seguimiento_norandino/core/errors/failures.dart';
+import 'package:seguimiento_norandino/features/seguimientos/domain/entities/seguimiento.dart';
+import 'package:seguimiento_norandino/features/seguimientos/domain/use_cases/seguimientos_use_cases.dart';
+
 import 'complete_seguimiento_use_case_test.mocks.dart';
 
-@GenerateMocks([SeguimientosRepository])
 void main() {
-  test('UC-S04: Debería completar un seguimiento', () async {
-    final seguimiento = Seguimiento(
-      id: 's4',
-      rutaId: 'r1',
-      nombreRuta: 'Ruta 1',
-      asesorId: 'a1',
-      nombreAsesor: 'Asesor 1',
-      clienteId: 'c1',
-      nombreCliente: 'Cliente 1',
-      tipoVisita: 'cobranza',
-      estado: 'completada',
-      requiereAccion: false,
+  late MockSeguimientosRepository repository;
+  late CompleteSeguimientoUseCase useCase;
+
+  final seguimientoCompletado = Seguimiento(
+    id: 'seg-10',
+    rutaId: 'ruta-1',
+    nombreRuta: 'Ruta Principal',
+    asesorId: 'asesor-1',
+    nombreAsesor: 'Juan Pérez',
+    clienteId: 'cliente-1',
+    nombreCliente: 'Cliente Demo',
+    tipoVisita: 'cobranza',
+    observaciones: 'visita exitosa',
+    estado: 'completada',
+    requiereAccion: false,
+  );
+
+  setUp(() {
+    repository = MockSeguimientosRepository();
+    useCase = CompleteSeguimientoUseCase(repository);
+  });
+
+  test('UC-S04: debería completar un seguimiento válido', () async {
+    const params = CompleteSeguimientoParams(
+      id: 'seg-10',
+      observaciones: 'Pago registrado',
+      montoRecaudado: 150.0,
     );
-    final mockRepo = MockSeguimientosRepository();
-    when(mockRepo.completeSeguimiento(any, observaciones: anyNamed('observaciones'), montoRecaudado: anyNamed('montoRecaudado')))
-      .thenAnswer((_) async => Right(seguimiento));
-    final useCase = CompleteSeguimientoUseCase(mockRepo);
-    final params = CompleteSeguimientoParams(id: 's4', observaciones: 'ok', montoRecaudado: 100.0);
+
+    when(
+      repository.completeSeguimiento(
+        any,
+        observaciones: anyNamed('observaciones'),
+        montoRecaudado: anyNamed('montoRecaudado'),
+      ),
+    ).thenAnswer((_) async => Right(seguimientoCompletado));
+
     final result = await useCase(params);
-    expect(result.isRight(), true);
-    result.fold((l) => null, (r) => expect(r, seguimiento));
+
+    expect(result.isRight(), isTrue);
+    expect(result.getOrElse(() => throw StateError('Resultado inesperado')), seguimientoCompletado);
+
+    verify(
+      repository.completeSeguimiento(
+        params.id,
+        observaciones: params.observaciones,
+        montoRecaudado: params.montoRecaudado,
+      ),
+    ).called(1);
+  });
+
+  test('UC-S04: debería fallar cuando el id es inválido', () async {
+    const params = CompleteSeguimientoParams(id: '');
+
+    final result = await useCase(params);
+
+    result.fold(
+      (failure) => expect(failure, const ValidationFailure(message: 'ID de seguimiento inválido')),
+      (_) => fail('Se esperaba un fallo de validación'),
+    );
+    verifyNever(repository.completeSeguimiento(any, observaciones: anyNamed('observaciones'), montoRecaudado: anyNamed('montoRecaudado')));
   });
 }
